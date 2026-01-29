@@ -9,7 +9,13 @@ Các schemas này được sử dụng cho:
 
 from .example import ExampleRequest, ExampleResponse
 from .errors import ErrorResponse, ErrorDetail
-from .graph import SimpleGraphRequest, SimpleGraphResponse, SimpleGraphResult
+from .graph import (
+    SimpleGraphRequest,
+    SimpleGraphResponse,
+    SimpleGraphResult,
+    SimpleGraphContinueRequest,
+    SimpleGraphStatusResponse,
+)
 
 __all__ = [
     "ExampleRequest",
@@ -19,5 +25,7 @@ __all__ = [
     "SimpleGraphRequest",
     "SimpleGraphResponse",
     "SimpleGraphResult",
+    "SimpleGraphContinueRequest",
+    "SimpleGraphStatusResponse",
 ]
 

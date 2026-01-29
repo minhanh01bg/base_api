@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SimpleGraph Human-in-the-Loop Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: radial-gradient(circle at top left, #eef2ff 0%, #f9fafb 40%, #e5e7eb 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #0f172a;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            gap: 20px;
+            height: calc(100vh - 40px);
+        }
+        .main-panel {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 16px;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            backdrop-filter: blur(10px);
+        }
+        .state-panel {
+            width: 380px;
+            background: rgba(255, 255, 255, 0.96);
+            border-radius: 16px;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.15);
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(10px);
+        }
+        .header {
+            padding: 20px 30px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        h1 {
+            color: #0f172a;
+            font-size: 22px;
+            margin-bottom: 4px;
+        }
+        .subtitle {
+            color: #6b7280;
+            font-size: 13px;
+        }
+        .header-left {
+            display: flex;
+            flex-direction: column;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 500;
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+        .thread-info {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #999;
+        }
+        .thread-id {
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #667eea;
+        }
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 30px;
+            background: #f9fafb;
+        }
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
+        }
+        .message.user {
+            justify-content: flex-end;
+        }
+        .message.assistant {
+            justify-content: flex-start;
+        }
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            word-wrap: break-word;
+        }
+        .message.user .message-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .message.assistant .message-bubble {
+            background: white;
+            color: #111827;
+            border: 1px solid #e5e7eb;
+            border-bottom-left-radius: 4px;
+        }
+        .message.waiting .message-bubble {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
+            border-left: 4px solid #ffc107;
+        }
+        .message-time {
+            font-size: 11px;
+            color: #999;
+            margin-top: 4px;
+            text-align: right;
+        }
+        .message.user .message-time {
+            text-align: left;
+        }
+        .input-container {
+            padding: 16px 24px 20px;
+            border-top: 1px solid #e5e7eb;
+            background: white;
+        }
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        textarea {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            min-height: 60px;
+            max-height: 120px;
+            transition: border-color 0.3s;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.4);
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            white-space: nowrap;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .status-bar {
+            padding: 10px 30px;
+            background: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+            font-size: 12px;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .status-indicator.waiting {
+            background: #ffc107;
+            animation: pulse 1.5s infinite;
+        }
+        .status-indicator.ready {
+            background: #28a745;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .hidden {
+            display: none;
+        }
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border-left: 4px solid #dc3545;
+        }
+        .state-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f9fafb;
+        }
+        .state-header h2 {
+            color: #333;
+            font-size: 16px;
+            margin: 0;
+        }
+        .state-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .state-section {
+            margin-bottom: 15px;
+        }
+        .state-section h3 {
+            color: #667eea;
+            font-size: 13px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .state-json {
+            background: #f9fafb;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .state-value {
+            color: #333;
+            margin: 4px 0;
+        }
+        .state-label {
+            color: #666;
+            font-weight: 500;
+            margin-right: 8px;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-top: 1px solid #e0e0e0;
+        }
+        .action-btn {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .action-btn.approve {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        .action-btn.approve:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+        .action-btn.reject {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+        }
+        .action-btn.reject:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+        }
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .question-box {
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .question-box h4 {
+            color: #856404;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .question-box p {
+            color: #856404;
+            margin: 0;
+            line-height: 1.5;
+        }
+        .file-review-box {
+            background: #e0f2fe;
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .file-review-box h4 {
+            color: #0c5460;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .file-review-box .file-path {
+            font-family: monospace;
+            background: white;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 8px 0;
+            color: #0c5460;
+        }
+        .file-review-box .file-content {
+            background: #f9fafb;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            color: #333;
+        }
+
+        /* Responsive layout */
+        @media (max-width: 1024px) {
+            .container {
+                flex-direction: column;
+                height: auto;
+            }
+            .state-panel {
+                width: 100%;
+                max-height: 320px;
+            }
+        }
+        @media (max-width: 640px) {
+            .container {
+                padding: 0;
+            }
+            .main-panel {
+                border-radius: 0;
+            }
+            .state-panel {
+                border-radius: 0;
+                box-shadow: none;
+            }
+            .header {
+                padding: 16px 18px;
+            }
+            .chat-container {
+                padding: 16px 18px;
+            }
+            .input-container {
+                padding: 12px 16px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-panel">
+            <div class="header">
+            <h1>🤖 SimpleGraph Human-in-the-Loop Chat</h1>
+            <p class="subtitle">Chat với AI và review responses trước khi hoàn thành</p>
+            <div class="thread-info hidden" id="threadInfo">
+                Thread ID: <span class="thread-id" id="threadIdDisplay"></span>
+            </div>
+        </div>
+        
+        <div class="chat-container" id="chatContainer">
+            <div class="message assistant">
+                <div class="message-bubble">
+                    👋 Xin chào! Tôi là SimpleGraph với human-in-the-loop. Hãy bắt đầu bằng cách nhập câu hỏi của bạn.
+                </div>
+            </div>
+        </div>
+        
+        <div class="status-bar" id="statusBar">
+            <div>
+                <span class="status-indicator ready" id="statusIndicator"></span>
+                <span id="statusText">Sẵn sàng</span>
+            </div>
+            <div id="tokenInfo"></div>
+        </div>
+        
+        <div class="input-container">
+            <div class="input-wrapper">
+                <textarea 
+                    id="messageInput" 
+                    placeholder="Nhập câu hỏi hoặc feedback của bạn..."
+                    rows="2"
+                    onkeydown="handleKeyDown(event)"
+                ></textarea>
+                <button id="sendBtn" onclick="sendMessage()">Gửi</button>
+            </div>
+            <div class="action-buttons" id="actionButtons" style="display: none;">
+                <button class="action-btn approve" onclick="handleApprove()">✅ Đồng ý</button>
+                <button class="action-btn reject" onclick="handleReject()">❌ Từ chối</button>
+            </div>
+        </div>
+        </div>
+        
+        <!-- State/Log Panel -->
+        <div class="state-panel">
+            <div class="state-header">
+                <h2>📊 State & Log</h2>
+            </div>
+            <div class="state-content" id="stateContent">
+                <div class="state-section">
+                    <h3>Current State</h3>
+                    <div class="state-json" id="currentState">Chưa có state</div>
+                </div>
+                <div class="state-section">
+                    <h3>Last Response</h3>
+                    <div class="state-json" id="lastResponse">Chưa có response</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentThreadId = null;
+        let conversationHistory = [];
+        let isWaitingForHuman = false;
+        let currentState = {};
+        let lastResponse = null;
+        const API_BASE = '/api/v1/graph/simple';
+        
+        function handleKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            if (isWaitingForHuman && !currentThreadId) {
+                showError('Vui lòng bắt đầu conversation trước!');
+                return;
+            }
+            
+            // Add user message to chat
+            addMessage('user', message);
+            input.value = '';
+            
+            // Disable input
+            setInputEnabled(false);
+            updateStatus('waiting', 'Đang xử lý...');
+            
+            try {
+                if (!currentThreadId) {
+                    // Start new conversation
+                    await startConversation(message);
+                } else if (isWaitingForHuman) {
+                    // Continue conversation with human input
+                    await continueConversation(message);
+                } else {
+                    // Send new message in existing conversation
+                    await sendNewMessage(message);
+                }
+            } catch (error) {
+                showError('Lỗi: ' + error.message);
+                setInputEnabled(true);
+                updateStatus('ready', 'Sẵn sàng');
+            }
+        }
+        
+        async function startConversation(query) {
+            try {
+                const response = await fetch(API_BASE + '/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query }),
+                });
+                
+                const data = await response.json();
+                
+                // Update state/log
+                lastResponse = data;
+                updateStateDisplay(data);
+                
+                if (data.success) {
+                    currentThreadId = data.thread_id;
+                    document.getElementById('threadIdDisplay').textContent = currentThreadId;
+                    document.getElementById('threadInfo').classList.remove('hidden');
+                    
+                    if (data.waiting_for_human) {
+                        // Graph paused, waiting for human review
+                        isWaitingForHuman = true;
+                        
+                        // Hiển thị câu hỏi từ graph (nếu có)
+                        if (data.data && data.data.final_response) {
+                            addQuestionMessage(data.data.final_response);
+                        }
+                        
+                        // Hiển thị file review nếu có (human_approval stage)
+                        if (data.data && data.data.file_path && data.data.file_content) {
+                            addFileReviewMessage(data.data.file_path, data.data.file_content);
+                            showActionButtons(true);
+                        } else {
+                            // ask_user_for_file_info stage - chỉ cần input text
+                            showActionButtons(false);
+                        }
+                        
+                        updateStatus('waiting', 'Đang chờ phản hồi từ bạn...');
+                    } else if (data.data) {
+                        // Graph completed immediately
+                        addMessage('assistant', data.data.final_response);
+                        updateTokenInfo(data.data.token_usage);
+                        updateStatus('ready', 'Sẵn sàng');
+                    }
+                } else {
+                    showError('Lỗi: ' + data.message);
+                }
+            } catch (error) {
+                showError('Lỗi kết nối: ' + error.message);
+            } finally {
+                setInputEnabled(true);
+            }
+        }
+        
+        async function continueConversation(humanInput) {
+            if (!currentThreadId) {
+                showError('Không có thread_id!');
+                return;
+            }
+            
+            try {
+                const response = await fetch(API_BASE + '/' + currentThreadId + '/continue', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ human_input: humanInput }),
+                });
+                
+                const data = await response.json();
+                
+                // Update state/log
+                lastResponse = data;
+                updateStateDisplay(data);
+                
+                if (data.success) {
+                    if (data.waiting_for_human) {
+                        // Still waiting for more input
+                        isWaitingForHuman = true;
+                        
+                        // Hiển thị câu hỏi từ graph (nếu có)
+                        if (data.data && data.data.final_response) {
+                            addQuestionMessage(data.data.final_response);
+                        }
+                        
+                        // Hiển thị file review nếu có (human_approval stage)
+                        if (data.data && data.data.file_path && data.data.file_content) {
+                            addFileReviewMessage(data.data.file_path, data.data.file_content);
+                            showActionButtons(true);
+                        } else {
+                            // ask_user_for_file_info stage - chỉ cần input text
+                            showActionButtons(false);
+                        }
+                        
+                        updateStatus('waiting', 'Đang chờ phản hồi từ bạn...');
+                    } else if (data.data) {
+                        // Graph completed
+                        isWaitingForHuman = false;
+                        showActionButtons(false);
+                        addMessage('assistant', data.data.final_response);
+                        updateTokenInfo(data.data.token_usage);
+                        updateStatus('ready', 'Sẵn sàng');
+                    }
+                } else {
+                    showError('Lỗi: ' + data.message);
+                }
+            } catch (error) {
+                showError('Lỗi kết nối: ' + error.message);
+            } finally {
+                setInputEnabled(true);
+            }
+        }
+        
+        async function sendNewMessage(message) {
+            // For now, treat as new conversation start
+            // In future, could implement message history passing
+            await startConversation(message);
+        }
+        
+        function addMessage(role, content) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+            
+            messageDiv.innerHTML = `
+                <div class="message-bubble">${escapeHtml(content)}</div>
+                <div class="message-time">${timeStr}</div>
+            `;
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            conversationHistory.push({ role, content, time: now });
+        }
+        
+        function showError(message) {
+            const chatContainer = document.getElementById('chatContainer');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            chatContainer.appendChild(errorDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        function setInputEnabled(enabled) {
+            const input = document.getElementById('messageInput');
+            const btn = document.getElementById('sendBtn');
+            input.disabled = !enabled;
+            btn.disabled = !enabled;
+            if (enabled) {
+                input.focus();
+            }
+        }
+        
+        function updateStatus(type, text) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            
+            indicator.className = `status-indicator ${type}`;
+            statusText.textContent = text;
+        }
+        
+        function updateTokenInfo(tokenUsage) {
+            const tokenInfo = document.getElementById('tokenInfo');
+            if (tokenUsage && tokenUsage.total_tokens) {
+                tokenInfo.textContent = `Tokens: ${tokenUsage.total_tokens} (prompt: ${tokenUsage.prompt_tokens || 0}, completion: ${tokenUsage.completion_tokens || 0})`;
+            } else {
+                tokenInfo.textContent = '';
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function addQuestionMessage(question) {
+            const chatContainer = document.getElementById('chatContainer');
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'question-box';
+            questionDiv.innerHTML = `
+                <h4>❓ Câu hỏi từ AI:</h4>
+                <p>${escapeHtml(question)}</p>
+            `;
+            chatContainer.appendChild(questionDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        function addFileReviewMessage(filePath, fileContent) {
+            const chatContainer = document.getElementById('chatContainer');
+            const reviewDiv = document.createElement('div');
+            reviewDiv.className = 'file-review-box';
+            reviewDiv.innerHTML = `
+                <h4>📄 File cần ghi:</h4>
+                <div class="file-path">${escapeHtml(filePath)}</div>
+                <h4>📝 Nội dung:</h4>
+                <div class="file-content">${escapeHtml(fileContent)}</div>
+            `;
+            chatContainer.appendChild(reviewDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        function showActionButtons(show) {
+            const actionButtons = document.getElementById('actionButtons');
+            if (show) {
+                actionButtons.style.display = 'flex';
+            } else {
+                actionButtons.style.display = 'none';
+            }
+        }
+        
+        async function handleApprove() {
+            if (!currentThreadId) {
+                showError('Không có thread_id!');
+                return;
+            }
+            
+            setInputEnabled(false);
+            showActionButtons(false);
+            addMessage('user', '✅ Đồng ý');
+            
+            try {
+                await continueConversation('đồng ý');
+            } catch (error) {
+                showError('Lỗi: ' + error.message);
+                setInputEnabled(true);
+            }
+        }
+        
+        async function handleReject() {
+            if (!currentThreadId) {
+                showError('Không có thread_id!');
+                return;
+            }
+            
+            setInputEnabled(false);
+            showActionButtons(false);
+            addMessage('user', '❌ Từ chối');
+            
+            try {
+                await continueConversation('từ chối');
+            } catch (error) {
+                showError('Lỗi: ' + error.message);
+                setInputEnabled(true);
+            }
+        }
+        
+        function updateStateDisplay(responseData) {
+            // Update current state
+            const stateObj = {
+                thread_id: currentThreadId || 'N/A',
+                waiting_for_human: responseData.waiting_for_human || false,
+                intent: responseData.data?.intent || 'N/A',
+                file_path: responseData.data?.file_path || null,
+                has_file_content: !!responseData.data?.file_content,
+                token_usage: responseData.data?.token_usage || null,
+            };
+            currentState = stateObj;
+            
+            const stateElement = document.getElementById('currentState');
+            stateElement.textContent = JSON.stringify(stateObj, null, 2);
+            
+            // Update last response
+            const responseElement = document.getElementById('lastResponse');
+            const responseObj = {
+                success: responseData.success,
+                message: responseData.message,
+                thread_id: responseData.thread_id,
+                waiting_for_human: responseData.waiting_for_human,
+                data: responseData.data ? {
+                    final_response: responseData.data.final_response?.substring(0, 200) + (responseData.data.final_response?.length > 200 ? '...' : ''),
+                    file_path: responseData.data.file_path,
+                    file_content_preview: responseData.data.file_content ? responseData.data.file_content.substring(0, 100) + '...' : null,
+                    token_usage: responseData.data.token_usage,
+                } : null,
+            };
+            responseElement.textContent = JSON.stringify(responseObj, null, 2);
+        }
+        
+        // Focus input on load
+        window.addEventListener('load', () => {
+            document.getElementById('messageInput').focus();
+        });
+    </script>
+</body>
+</html>
