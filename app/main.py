@@ -203,11 +203,8 @@ async def health_check():
     return health_status
 
 
-# Include API routers
-try:
-    from app.api.routes import api_router
-    app.include_router(api_router, prefix=settings.api_prefix)
-    logger.info("API routes loaded successfully")
-except ImportError:
-    logger.info("No API routes found, skipping router inclusion")
+# Include API routers (không bọc try/except để thấy lỗi rõ ràng khi import fail)
+from app.api.routes import api_router
+app.include_router(api_router, prefix=settings.api_prefix)
+logger.info("API routes loaded successfully")
 
